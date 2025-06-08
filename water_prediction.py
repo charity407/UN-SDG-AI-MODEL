@@ -9,510 +9,646 @@ Objective: Predict water potability using water quality parameters
 """
 
 # Import required libraries
+import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from sklearn.model_selection import train_test_split, cross_val_score, GridSearchCV
-from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score, roc_curve
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 import warnings
 warnings.filterwarnings('ignore')
 
-# Set style for better visualizations
-plt.style.use('seaborn-v0_8')
-sns.set_palette("husl")
+# Streamlit page configuration
+st.set_page_config(
+    page_title="Water Quality Prediction - SDG 6",
+    page_icon="💧",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-print("=" * 80)
-print("WATER QUALITY PREDICTION FOR SDG 6: CLEAN WATER AND SANITATION")
-print("=" * 80)
-print()
+st.title("💧 Water Quality Prediction for SDG 6: Clean Water and Sanitation")
+st.markdown("---")
+
+# Sidebar for navigation
+st.sidebar.title("Navigation")
+sections = [
+    "1. Data Loading & Exploration",
+    "2. Data Preprocessing", 
+    "3. Exploratory Data Analysis",
+    "4. Feature Engineering",
+    "5. Model Training",
+    "6. Model Evaluation",
+    "7. Model Interpretation",
+    "8. Ethical Considerations",
+    "9. Summary & Conclusions"
+]
+selected_section = st.sidebar.selectbox("Select Section:", sections)
+
+# Initialize session state
+if 'data_loaded' not in st.session_state:
+    st.session_state.data_loaded = False
+if 'models_trained' not in st.session_state:
+    st.session_state.models_trained = False
 
 # ============================================================================
 # 1. DATA LOADING AND INITIAL EXPLORATION
 # ============================================================================
 
-print("1. LOADING AND EXPLORING THE DATASET")
-print("-" * 50)
-
-# Load the dataset
-df = pd.read_csv('/data/water_potability.csv')
-
-print(f"Dataset shape: {df.shape}")
-print(f"Features: {df.columns.tolist()}")
-print()
-
-# Display basic information
-print("Dataset Info:")
-print(df.info())
-print()
-
-print("First 5 rows:")
-print(df.head())
-print()
-
-print("Statistical Summary:")
-print(df.describe())
-print()
-
-# Check for missing values
-print("Missing Values:")
-missing_values = df.isnull().sum()
-print(missing_values)
-print(f"Total missing values: {missing_values.sum()}")
-print()
+if selected_section == "1. Data Loading & Exploration":
+    st.header("1. Data Loading and Initial Exploration")
+    
+    # File uploader
+    uploaded_file = st.file_uploader("Upload your water quality dataset (CSV)", type=['csv'])
+    
+    if uploaded_file is not None:
+        try:
+            df = pd.read_csv(uploaded_file)
+            st.session_state.df = df
+            st.session_state.data_loaded = True
+            
+            st.success(f"Dataset loaded successfully! Shape: {df.shape}")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.subheader("Dataset Information")
+                st.write(f"**Rows:** {df.shape[0]}")
+                st.write(f"**Columns:** {df.shape[1]}")
+                st.write(f"**Features:** {df.columns.tolist()}")
+            
+            with col2:
+                st.subheader("Missing Values")
+                missing_values = df.isnull().sum()
+                if missing_values.sum() > 0:
+                    st.write(missing_values[missing_values > 0])
+                else:
+                    st.write("No missing values found!")
+            
+            st.subheader("First 5 Rows")
+            st.dataframe(df.head())
+            
+            st.subheader("Statistical Summary")
+            st.dataframe(df.describe())
+            
+        except Exception as e:
+            st.error(f"Error loading dataset: {str(e)}")
+    
+    else:
+        st.info("Please upload a CSV file to begin the analysis.")
+        # For demo purposes, create sample data
+        if st.button("Use Demo Data"):
+            np.random.seed(42)
+            n_samples = 1000
+            demo_data = {
+                'ph': np.random.normal(7, 1, n_samples),
+                'Hardness': np.random.normal(200, 50, n_samples),
+                'Solids': np.random.normal(20000, 5000, n_samples),
+                'Chloramines': np.random.normal(7, 2, n_samples),
+                'Sulfate': np.random.normal(300, 100, n_samples),
+                'Conductivity': np.random.normal(400, 100, n_samples),
+                'Organic_carbon': np.random.normal(15, 5, n_samples),
+                'Trihalomethanes': np.random.normal(70, 20, n_samples),
+                'Turbidity': np.random.normal(4, 2, n_samples),
+                'Potability': np.random.choice([0, 1], n_samples, p=[0.6, 0.4])
+            }
+            df = pd.DataFrame(demo_data)
+            st.session_state.df = df
+            st.session_state.data_loaded = True
+            st.rerun()
 
 # ============================================================================
 # 2. DATA PREPROCESSING
 # ============================================================================
 
-print("2. DATA PREPROCESSING")
-print("-" * 50)
-
-# Create a copy for preprocessing
-df_processed = df.copy()
-
-# Convert string columns to numeric (handling potential conversion issues)
-string_columns = ['ph', 'Sulfate', 'Trihalomethanes']
-for col in string_columns:
-    if col in df_processed.columns:
-        df_processed[col] = pd.to_numeric(df_processed[col], errors='coerce')
-
-# Handle missing values using median imputation for numerical features
-numerical_features = df_processed.select_dtypes(include=[np.number]).columns.tolist()
-if 'Potability' in numerical_features:
-    numerical_features.remove('Potability')
-
-print("Handling missing values using median imputation...")
-for feature in numerical_features:
-    if df_processed[feature].isnull().sum() > 0:
-        median_value = df_processed[feature].median()
-        df_processed[feature].fillna(median_value, inplace=True)
-        print(f"Filled {feature} missing values with median: {median_value:.2f}")
-
-print()
-print("Missing values after preprocessing:")
-print(df_processed.isnull().sum())
-print()
-
-# Separate features and target
-X = df_processed.drop('Potability', axis=1)
-y = df_processed['Potability']
-
-print(f"Features shape: {X.shape}")
-print(f"Target shape: {y.shape}")
-print(f"Target distribution:\n{y.value_counts()}")
-print()
-
-# ============================================================================
-# 3. EXPLORATORY DATA ANALYSIS (EDA)
-# ============================================================================
-
-print("3. EXPLORATORY DATA ANALYSIS")
-print("-" * 50)
-
-# Class balance visualization
-plt.figure(figsize=(15, 12))
-
-# Target distribution
-plt.subplot(3, 3, 1)
-y.value_counts().plot(kind='bar', color=['lightcoral', 'lightblue'])
-plt.title('Water Potability Distribution')
-plt.xlabel('Potability (0: Not Potable, 1: Potable)')
-plt.ylabel('Count')
-plt.xticks(rotation=0)
-
-# Feature distributions
-features_to_plot = X.columns[:8]  # Plot first 8 features
-for i, feature in enumerate(features_to_plot, 2):
-    plt.subplot(3, 3, i)
-    plt.hist(X[feature], bins=30, alpha=0.7, color='skyblue', edgecolor='black')
-    plt.title(f'Distribution of {feature}')
-    plt.xlabel(feature)
-    plt.ylabel('Frequency')
-
-plt.tight_layout()
-plt.show()
-
-# Correlation heatmap
-plt.figure(figsize=(12, 10))
-correlation_matrix = df_processed.corr()
-sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', center=0, 
-            square=True, linewidths=0.5)
-plt.title('Feature Correlation Heatmap')
-plt.tight_layout()
-plt.show()
-
-# Box plots for features by target class
-plt.figure(figsize=(20, 15))
-for i, feature in enumerate(X.columns, 1):
-    plt.subplot(3, 3, i)
-    df_processed.boxplot(column=feature, by='Potability', ax=plt.gca())
-    plt.title(f'{feature} by Potability')
-    plt.suptitle('')  # Remove default title
+elif selected_section == "2. Data Preprocessing":
+    st.header("2. Data Preprocessing")
     
-plt.tight_layout()
-plt.show()
+    if not st.session_state.data_loaded:
+        st.warning("Please load data first from Section 1.")
+    else:
+        df = st.session_state.df
+        
+        st.subheader("Preprocessing Steps")
+        
+        # Create a copy for preprocessing
+        df_processed = df.copy()
+        
+        # Handle missing values
+        numerical_features = df_processed.select_dtypes(include=[np.number]).columns.tolist()
+        if 'Potability' in numerical_features:
+            numerical_features.remove('Potability')
+        
+        missing_before = df_processed.isnull().sum().sum()
+        
+        # Fill missing values with median
+        for feature in numerical_features:
+            if df_processed[feature].isnull().sum() > 0:
+                median_value = df_processed[feature].median()
+                df_processed[feature].fillna(median_value, inplace=True)
+        
+        missing_after = df_processed.isnull().sum().sum()
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Missing Values Before", missing_before)
+        with col2:
+            st.metric("Missing Values After", missing_after)
+        
+        # Separate features and target
+        X = df_processed.drop('Potability', axis=1)
+        y = df_processed['Potability']
+        
+        st.subheader("Target Distribution")
+        target_counts = y.value_counts()
+        
+        fig = px.bar(
+            x=target_counts.index, 
+            y=target_counts.values,
+            labels={'x': 'Potability (0: Not Potable, 1: Potable)', 'y': 'Count'},
+            title="Water Potability Distribution"
+        )
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Store processed data
+        st.session_state.df_processed = df_processed
+        st.session_state.X = X
+        st.session_state.y = y
+        
+        st.success("Data preprocessing completed successfully!")
 
-# Feature correlation with target
-target_correlation = correlation_matrix['Potability'].drop('Potability').sort_values(key=abs, ascending=False)
-print("Feature correlation with target (Potability):")
-for feature, corr in target_correlation.items():
-    print(f"{feature}: {corr:.4f}")
-print()
+# ============================================================================
+# 3. EXPLORATORY DATA ANALYSIS
+# ============================================================================
+
+elif selected_section == "3. Exploratory Data Analysis":
+    st.header("3. Exploratory Data Analysis")
+    
+    if not st.session_state.data_loaded:
+        st.warning("Please load and preprocess data first.")
+    else:
+        df_processed = st.session_state.get('df_processed', st.session_state.df)
+        X = st.session_state.get('X')
+        y = st.session_state.get('y')
+        
+        if X is None or y is None:
+            st.warning("Please complete data preprocessing first.")
+        else:
+            # Feature distributions
+            st.subheader("Feature Distributions")
+            
+            selected_features = st.multiselect(
+                "Select features to visualize:",
+                X.columns.tolist(),
+                default=X.columns.tolist()[:4]
+            )
+            
+            if selected_features:
+                for feature in selected_features:
+                    fig = px.histogram(
+                        df_processed, 
+                        x=feature, 
+                        color='Potability',
+                        title=f'Distribution of {feature} by Potability',
+                        marginal="box"
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+            
+            # Correlation heatmap
+            st.subheader("Feature Correlation Heatmap")
+            correlation_matrix = df_processed.corr()
+            
+            fig = px.imshow(
+                correlation_matrix,
+                text_auto=True,
+                aspect="auto",
+                title="Feature Correlation Matrix"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Feature correlation with target
+            st.subheader("Feature Correlation with Target")
+            target_correlation = correlation_matrix['Potability'].drop('Potability').sort_values(key=abs, ascending=False)
+            
+            fig = px.bar(
+                x=target_correlation.values,
+                y=target_correlation.index,
+                orientation='h',
+                title="Feature Correlation with Potability"
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
 # ============================================================================
 # 4. FEATURE ENGINEERING
 # ============================================================================
 
-print("4. FEATURE ENGINEERING")
-print("-" * 50)
-
-# Identify low variance features
-feature_variances = X.var().sort_values()
-print("Feature variances:")
-for feature, variance in feature_variances.items():
-    print(f"{feature}: {variance:.4f}")
-print()
-
-# Create interaction features (domain-specific ratios)
-X_engineered = X.copy()
-
-# pH-related interactions (water chemistry)
-X_engineered['pH_Hardness_ratio'] = X_engineered['ph'] / (X_engineered['Hardness'] + 1e-8)
-X_engineered['pH_Sulfate_ratio'] = X_engineered['ph'] / (X_engineered['Sulfate'] + 1e-8)
-
-# Contamination indicators
-X_engineered['Organic_Trihalomethanes_ratio'] = X_engineered['Organic_carbon'] / (X_engineered['Trihalomethanes'] + 1e-8)
-X_engineered['Turbidity_Conductivity_ratio'] = X_engineered['Turbidity'] / (X_engineered['Conductivity'] + 1e-8)
-
-# Chemical balance indicator
-X_engineered['Chemical_balance'] = X_engineered['Chloramines'] * X_engineered['Sulfate'] / (X_engineered['Solids'] + 1e-8)
-
-print(f"Original features: {X.shape[1]}")
-print(f"Engineered features: {X_engineered.shape[1]}")
-print(f"New features added: {X_engineered.shape[1] - X.shape[1]}")
-print()
-
-# Feature selection based on correlation with target
-X_with_target = X_engineered.copy()
-X_with_target['Potability'] = y
-
-correlation_with_target = X_with_target.corr()['Potability'].drop('Potability')
-important_features = correlation_with_target[abs(correlation_with_target) > 0.01].index.tolist()
-
-print(f"Selected {len(important_features)} important features based on correlation threshold:")
-for feature in important_features:
-    print(f"- {feature}: {correlation_with_target[feature]:.4f}")
-print()
-
-X_final = X_engineered[important_features]
-
-# ============================================================================
-# 5. DATA SPLITTING AND SCALING
-# ============================================================================
-
-print("5. DATA SPLITTING AND SCALING")
-print("-" * 50)
-
-# Split the data
-X_train, X_test, y_train, y_test = train_test_split(
-    X_final, y, test_size=0.2, random_state=42, stratify=y
-)
-
-print(f"Training set: {X_train.shape}")
-print(f"Test set: {X_test.shape}")
-print(f"Training target distribution:\n{y_train.value_counts()}")
-print(f"Test target distribution:\n{y_test.value_counts()}")
-print()
-
-# Scale the features
-scaler = StandardScaler()
-X_train_scaled = scaler.fit_transform(X_train)
-X_test_scaled = scaler.transform(X_test)
-
-print("Features scaled using StandardScaler")
-print()
-
-# ============================================================================
-# 6. MODEL TRAINING AND EVALUATION
-# ============================================================================
-
-print("6. MODEL TRAINING AND EVALUATION")
-print("-" * 50)
-
-# Initialize models
-models = {
-    'Random Forest': RandomForestClassifier(random_state=42),
-    'Gradient Boosting': GradientBoostingClassifier(random_state=42)
-}
-
-# Hyperparameter grids
-param_grids = {
-    'Random Forest': {
-        'n_estimators': [100, 200],
-        'max_depth': [10, 20, None],
-        'min_samples_split': [2, 5],
-        'min_samples_leaf': [1, 2]
-    },
-    'Gradient Boosting': {
-        'n_estimators': [100, 200],
-        'learning_rate': [0.05, 0.1, 0.2],
-        'max_depth': [3, 5, 7]
-    }
-}
-
-# Store results
-results = {}
-best_models = {}
-
-for model_name, model in models.items():
-    print(f"\nTraining {model_name}...")
+elif selected_section == "4. Feature Engineering":
+    st.header("4. Feature Engineering")
     
-    # Hyperparameter tuning with cross-validation
-    grid_search = GridSearchCV(
-        model, param_grids[model_name], 
-        cv=5, scoring='roc_auc', n_jobs=-1, verbose=0
-    )
+    if not st.session_state.data_loaded:
+        st.warning("Please load and preprocess data first.")
+    else:
+        X = st.session_state.get('X')
+        y = st.session_state.get('y')
+        
+        if X is None or y is None:
+            st.warning("Please complete data preprocessing first.")
+        else:
+            st.subheader("Creating Engineered Features")
+            
+            # Create interaction features
+            X_engineered = X.copy()
+            
+            # pH-related interactions
+            X_engineered['pH_Hardness_ratio'] = X_engineered['ph'] / (X_engineered['Hardness'] + 1e-8)
+            X_engineered['pH_Sulfate_ratio'] = X_engineered['ph'] / (X_engineered['Sulfate'] + 1e-8)
+            
+            # Contamination indicators
+            X_engineered['Organic_Trihalomethanes_ratio'] = X_engineered['Organic_carbon'] / (X_engineered['Trihalomethanes'] + 1e-8)
+            X_engineered['Turbidity_Conductivity_ratio'] = X_engineered['Turbidity'] / (X_engineered['Conductivity'] + 1e-8)
+            
+            # Chemical balance indicator
+            X_engineered['Chemical_balance'] = X_engineered['Chloramines'] * X_engineered['Sulfate'] / (X_engineered['Solids'] + 1e-8)
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Original Features", X.shape[1])
+            with col2:
+                st.metric("Engineered Features", X_engineered.shape[1])
+            with col3:
+                st.metric("New Features Added", X_engineered.shape[1] - X.shape[1])
+            
+            # Feature selection based on correlation
+            X_with_target = X_engineered.copy()
+            X_with_target['Potability'] = y
+            
+            correlation_with_target = X_with_target.corr()['Potability'].drop('Potability')
+            correlation_threshold = st.slider("Correlation Threshold", 0.0, 0.5, 0.01, 0.01)
+            
+            important_features = correlation_with_target[abs(correlation_with_target) > correlation_threshold].index.tolist()
+            
+            st.subheader(f"Selected Features (Correlation > {correlation_threshold})")
+            st.write(f"Number of selected features: {len(important_features)}")
+            
+            if important_features:
+                feature_corr_df = pd.DataFrame({
+                    'Feature': important_features,
+                    'Correlation': [correlation_with_target[f] for f in important_features]
+                }).sort_values('Correlation', key=abs, ascending=False)
+                
+                st.dataframe(feature_corr_df)
+                
+                X_final = X_engineered[important_features]
+                st.session_state.X_final = X_final
+                st.session_state.feature_names = important_features
+                
+                st.success("Feature engineering completed!")
+            else:
+                st.warning("No features meet the correlation threshold. Try lowering the threshold.")
+
+# ============================================================================
+# 5. MODEL TRAINING
+# ============================================================================
+
+elif selected_section == "5. Model Training":
+    st.header("5. Model Training and Evaluation")
     
-    grid_search.fit(X_train_scaled, y_train)
-    best_model = grid_search.best_estimator_
-    best_models[model_name] = best_model
+    if not st.session_state.data_loaded:
+        st.warning("Please complete previous steps first.")
+    else:
+        X_final = st.session_state.get('X_final')
+        y = st.session_state.get('y')
+        
+        if X_final is None or y is None:
+            st.warning("Please complete feature engineering first.")
+        else:
+            st.subheader("Data Splitting and Scaling")
+            
+            # Split the data
+            test_size = st.slider("Test Size", 0.1, 0.4, 0.2, 0.05)
+            X_train, X_test, y_train, y_test = train_test_split(
+                X_final, y, test_size=test_size, random_state=42, stratify=y
+            )
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Training Samples", X_train.shape[0])
+            with col2:
+                st.metric("Test Samples", X_test.shape[0])
+            
+            # Scale features
+            scaler = StandardScaler()
+            X_train_scaled = scaler.fit_transform(X_train)
+            X_test_scaled = scaler.transform(X_test)
+            
+            st.subheader("Model Training")
+            
+            if st.button("Train Models", type="primary"):
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                
+                # Initialize models
+                models = {
+                    'Random Forest': RandomForestClassifier(random_state=42),
+                    'Gradient Boosting': GradientBoostingClassifier(random_state=42)
+                }
+                
+                # Simplified hyperparameter grids for faster training
+                param_grids = {
+                    'Random Forest': {
+                        'n_estimators': [100, 200],
+                        'max_depth': [10, 20],
+                        'min_samples_split': [2, 5]
+                    },
+                    'Gradient Boosting': {
+                        'n_estimators': [100, 200],
+                        'learning_rate': [0.1, 0.2],
+                        'max_depth': [3, 5]
+                    }
+                }
+                
+                results = {}
+                best_models = {}
+                
+                for i, (model_name, model) in enumerate(models.items()):
+                    status_text.text(f"Training {model_name}...")
+                    progress_bar.progress((i + 1) / len(models))
+                    
+                    # Hyperparameter tuning
+                    grid_search = GridSearchCV(
+                        model, param_grids[model_name], 
+                        cv=3, scoring='roc_auc', n_jobs=-1
+                    )
+                    
+                    grid_search.fit(X_train_scaled, y_train)
+                    best_model = grid_search.best_estimator_
+                    best_models[model_name] = best_model
+                    
+                    # Predictions
+                    y_pred = best_model.predict(X_test_scaled)
+                    y_pred_proba = best_model.predict_proba(X_test_scaled)[:, 1]
+                    
+                    # Metrics
+                    results[model_name] = {
+                        'accuracy': accuracy_score(y_test, y_pred),
+                        'precision': precision_score(y_test, y_pred),
+                        'recall': recall_score(y_test, y_pred),
+                        'f1': f1_score(y_test, y_pred),
+                        'roc_auc': roc_auc_score(y_test, y_pred_proba),
+                        'y_pred': y_pred,
+                        'y_pred_proba': y_pred_proba,
+                        'best_params': grid_search.best_params_
+                    }
+                
+                # Store results in session state
+                st.session_state.results = results
+                st.session_state.best_models = best_models
+                st.session_state.X_test = X_test
+                st.session_state.y_test = y_test
+                st.session_state.X_test_scaled = X_test_scaled
+                st.session_state.models_trained = True
+                
+                status_text.text("Training completed!")
+                progress_bar.progress(1.0)
+                st.success("Models trained successfully!")
+                
+                # Display results
+                st.subheader("Model Performance")
+                results_df = pd.DataFrame(results).T
+                st.dataframe(results_df[['accuracy', 'precision', 'recall', 'f1', 'roc_auc']])
+
+# ============================================================================
+# 6. MODEL EVALUATION
+# ============================================================================
+
+elif selected_section == "6. Model Evaluation":
+    st.header("6. Model Evaluation Visualizations")
     
-    print(f"Best parameters: {grid_search.best_params_}")
-    print(f"Best CV score: {grid_search.best_score_:.4f}")
+    if not st.session_state.models_trained:
+        st.warning("Please train models first in Section 5.")
+    else:
+        results = st.session_state.results
+        y_test = st.session_state.y_test
+        
+        # Performance comparison
+        st.subheader("Model Performance Comparison")
+        results_df = pd.DataFrame(results).T
+        
+        fig = px.bar(
+            results_df.reset_index(),
+            x='index',
+            y=['accuracy', 'precision', 'recall', 'f1', 'roc_auc'],
+            title="Model Performance Metrics",
+            barmode='group'
+        )
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # ROC Curves
+        st.subheader("ROC Curves")
+        fig = go.Figure()
+        
+        for model_name in results.keys():
+            fpr, tpr, _ = roc_curve(y_test, results[model_name]['y_pred_proba'])
+            fig.add_trace(go.Scatter(
+                x=fpr, y=tpr,
+                name=f"{model_name} (AUC = {results[model_name]['roc_auc']:.3f})",
+                mode='lines'
+            ))
+        
+        fig.add_trace(go.Scatter(x=[0, 1], y=[0, 1], mode='lines', name='Random', line=dict(dash='dash')))
+        fig.update_layout(
+            title="ROC Curves",
+            xaxis_title="False Positive Rate",
+            yaxis_title="True Positive Rate"
+        )
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Confusion Matrices
+        st.subheader("Confusion Matrices")
+        col1, col2 = st.columns(2)
+        
+        for i, (model_name, col) in enumerate(zip(results.keys(), [col1, col2])):
+            with col:
+                cm = confusion_matrix(y_test, results[model_name]['y_pred'])
+                fig = px.imshow(cm, text_auto=True, title=f"{model_name} Confusion Matrix")
+                st.plotly_chart(fig, use_container_width=True)
+        
+        # Feature Importance (Random Forest)
+        if 'Random Forest' in st.session_state.best_models:
+            st.subheader("Feature Importance (Random Forest)")
+            rf_model = st.session_state.best_models['Random Forest']
+            feature_names = st.session_state.get('feature_names', [])
+            
+            if feature_names:
+                importance_df = pd.DataFrame({
+                    'feature': feature_names,
+                    'importance': rf_model.feature_importances_
+                }).sort_values('importance', ascending=True)
+                
+                fig = px.bar(
+                    importance_df,
+                    x='importance',
+                    y='feature',
+                    orientation='h',
+                    title="Random Forest Feature Importance"
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+# ============================================================================
+# 7. MODEL INTERPRETATION
+# ============================================================================
+
+elif selected_section == "7. Model Interpretation":
+    st.header("7. Model Interpretation and Insights")
     
-    # Make predictions
-    y_pred = best_model.predict(X_test_scaled)
-    y_pred_proba = best_model.predict_proba(X_test_scaled)[:, 1]
+    if not st.session_state.models_trained:
+        st.warning("Please train models first in Section 5.")
+    else:
+        results = st.session_state.results
+        best_models = st.session_state.best_models
+        
+        # Best performing model
+        best_model_name = max(results.keys(), key=lambda x: results[x]['roc_auc'])
+        
+        st.subheader("Best Performing Model")
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("Best Model", best_model_name)
+        with col2:
+            st.metric("ROC-AUC Score", f"{results[best_model_name]['roc_auc']:.4f}")
+        with col3:
+            st.metric("Accuracy", f"{results[best_model_name]['accuracy']:.1%}")
+        
+        # Feature importance analysis
+        if 'Random Forest' in best_models:
+            st.subheader("Top Features for Water Potability Prediction")
+            rf_model = best_models['Random Forest']
+            feature_names = st.session_state.get('feature_names', [])
+            
+            if feature_names:
+                feature_importance = pd.DataFrame({
+                    'feature': feature_names,
+                    'importance': rf_model.feature_importances_
+                }).sort_values('importance', ascending=False)
+                
+                st.dataframe(feature_importance.head(10))
+        
+        # Model parameters
+        st.subheader("Best Model Parameters")
+        for model_name, result in results.items():
+            st.write(f"**{model_name}:**")
+            st.json(result['best_params'])
+
+# ============================================================================
+# 8. ETHICAL CONSIDERATIONS
+# ============================================================================
+
+elif selected_section == "8. Ethical Considerations":
+    st.header("8. Ethical Considerations and Bias Analysis")
     
-    # Calculate metrics
-    accuracy = accuracy_score(y_test, y_pred)
-    precision = precision_score(y_test, y_pred)
-    recall = recall_score(y_test, y_pred)
-    f1 = f1_score(y_test, y_pred)
-    roc_auc = roc_auc_score(y_test, y_pred_proba)
-    
-    results[model_name] = {
-        'accuracy': accuracy,
-        'precision': precision,
-        'recall': recall,
-        'f1': f1,
-        'roc_auc': roc_auc,
-        'y_pred': y_pred,
-        'y_pred_proba': y_pred_proba
-    }
-    
-    print(f"Test Accuracy: {accuracy:.4f}")
-    print(f"Test Precision: {precision:.4f}")
-    print(f"Test Recall: {recall:.4f}")
-    print(f"Test F1-score: {f1:.4f}")
-    print(f"Test ROC-AUC: {roc_auc:.4f}")
-
-# ============================================================================
-# 7. MODEL EVALUATION VISUALIZATIONS
-# ============================================================================
-
-print("\n7. MODEL EVALUATION VISUALIZATIONS")
-print("-" * 50)
-
-# Create evaluation plots
-fig, axes = plt.subplots(2, 3, figsize=(18, 12))
-
-# Metrics comparison
-metrics_df = pd.DataFrame(results).T
-metrics_df[['accuracy', 'precision', 'recall', 'f1', 'roc_auc']].plot(kind='bar', ax=axes[0, 0])
-axes[0, 0].set_title('Model Performance Comparison')
-axes[0, 0].set_ylabel('Score')
-axes[0, 0].legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-axes[0, 0].tick_params(axis='x', rotation=45)
-
-# ROC Curves
-for model_name in models.keys():
-    fpr, tpr, _ = roc_curve(y_test, results[model_name]['y_pred_proba'])
-    axes[0, 1].plot(fpr, tpr, label=f"{model_name} (AUC = {results[model_name]['roc_auc']:.3f})")
-
-axes[0, 1].plot([0, 1], [0, 1], 'k--', label='Random')
-axes[0, 1].set_xlabel('False Positive Rate')
-axes[0, 1].set_ylabel('True Positive Rate')
-axes[0, 1].set_title('ROC Curves')
-axes[0, 1].legend()
-
-# Feature importance for Random Forest
-rf_model = best_models['Random Forest']
-feature_importance = pd.DataFrame({
-    'feature': X_final.columns,
-    'importance': rf_model.feature_importances_
-}).sort_values('importance', ascending=True)
-
-axes[0, 2].barh(feature_importance['feature'], feature_importance['importance'])
-axes[0, 2].set_title('Random Forest Feature Importance')
-axes[0, 2].set_xlabel('Importance')
-
-# Confusion matrices
-for i, model_name in enumerate(models.keys()):
-    cm = confusion_matrix(y_test, results[model_name]['y_pred'])
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=axes[1, i])
-    axes[1, i].set_title(f'{model_name} Confusion Matrix')
-    axes[1, i].set_xlabel('Predicted')
-    axes[1, i].set_ylabel('Actual')
-
-# Remove empty subplot
-axes[1, 2].remove()
-
-plt.tight_layout()
-plt.show()
-
-# Print detailed classification reports
-for model_name in models.keys():
-    print(f"\n{model_name} Classification Report:")
-    print("-" * 40)
-    print(classification_report(y_test, results[model_name]['y_pred']))
-
-# ============================================================================
-# 8. MODEL INTERPRETATION AND INSIGHTS
-# ============================================================================
-
-print("\n8. MODEL INTERPRETATION AND INSIGHTS")
-print("-" * 50)
-
-# Best performing model
-best_model_name = max(results.keys(), key=lambda x: results[x]['roc_auc'])
-print(f"Best performing model: {best_model_name}")
-print(f"Best ROC-AUC score: {results[best_model_name]['roc_auc']:.4f}")
-print()
-
-# Feature importance analysis
-print("Top 5 most important features for water potability prediction:")
-top_features = feature_importance.tail(5)
-for _, row in top_features.iterrows():
-    print(f"- {row['feature']}: {row['importance']:.4f}")
-print()
-
-# Cross-validation scores
-print("Cross-validation performance:")
-for model_name, model in best_models.items():
-    cv_scores = cross_val_score(model, X_train_scaled, y_train, cv=5, scoring='roc_auc')
-    print(f"{model_name}: {cv_scores.mean():.4f} (+/- {cv_scores.std() * 2:.4f})")
-print()
-
-# ============================================================================
-# 9. ETHICAL CONSIDERATIONS AND BIAS ANALYSIS
-# ============================================================================
-
-print("\n9. ETHICAL CONSIDERATIONS AND BIAS ANALYSIS")
-print("-" * 50)
-
-print("""
-ETHICAL REFLECTION ON WATER QUALITY PREDICTION MODEL
-
-1. DATA COLLECTION BIAS:
-   - Geographic Bias: The dataset may not represent all regions of Kenya equally.
-     Rural vs urban sampling could lead to biased predictions.
-   - Temporal Bias: Water quality varies seasonally, but our model may not capture
-     these variations if data collection was limited to specific time periods.
-   - Infrastructure Bias: Areas with better monitoring infrastructure may be
-     overrepresented in the dataset.
-
-2. FAIRNESS CONSIDERATIONS:
-   - Regional Equity: The model should perform equally well across different
-     counties and regions to ensure fair resource allocation.
-   - Socioeconomic Fairness: Predictions should not systematically disadvantage
-     communities based on their economic status or infrastructure development.
-   - Access Equity: False negatives: predicting safe water when it is contaminated
-     could disproportionately harm vulnerable populations.
-
-3. RESPONSIBLE DEPLOYMENT:
-   - Model Limitations: This model should supplement, not replace, direct water
-     quality testing and expert judgment.
-   - Transparency: Local governments and water quality teams should understand
-     the model limitations and confidence intervals.
-   - Regular Updates: The model should be retrained with new data to maintain
-     accuracy and relevance.
-   - Community Involvement: Local communities should be involved in validation
-     and feedback processes.
-
-4. IMPACT ASSESSMENT:
-   - Positive Impact: Early identification of contaminated water sources can
-     prevent waterborne diseases and improve public health outcomes.
-   - Risk Mitigation: False positives (predicting contamination when water is safe)
-     are preferable to false negatives in terms of public health protection.
-   - Resource Optimization: The model can help prioritize water quality testing
-     and treatment efforts in resource-constrained environments.
-
-5. RECOMMENDATIONS FOR RESPONSIBLE USE:
-   - Use as a screening tool to prioritize detailed testing, not as a final decision maker
-   - Implement confidence thresholds and flag uncertain predictions for manual review
-   - Regularly validate model performance across different regions and populations
-   - Maintain human oversight and expert review of all predictions
-   - Ensure transparent communication of model limitations to all stakeholders
-""")
-
-# ============================================================================
-# 10. SUMMARY AND CONCLUSIONS
-# ============================================================================
-
-print("\n10. SUMMARY AND CONCLUSIONS")
-print("-" * 50)
-
-# Streamlit components (if running in Streamlit environment)
-try:
-    import streamlit as st
-    st.markdown("### WATER QUALITY PREDICTION MODEL SUMMARY")
-    st.markdown(f"""
-    Dataset: {df.shape[0]} samples with {df.shape[1]} features
-    Target: Water potability (binary classification)
-    Best Model: {best_model_name} (ROC-AUC: {results[best_model_name]['roc_auc']:.3f})
-    Accuracy: {results[best_model_name]['accuracy']:.1%}
-    """)
-
-    st.markdown("Top 3 Features for Prediction:")
-    for _, row in feature_importance.tail(3).iterrows():
-        st.markdown(f"- {row['feature']}")
-
     st.markdown("""
-    SDG 6 Alignment:
-    • Enables early detection of unsafe water
-    • Supports data-driven resource allocation
-    • Reduces disease risk from contaminated water
-
-    Next Steps:
-    • Deploy model with human oversight
-    • Collect data from underrepresented areas
-    • Add real-time monitoring integration
-    • Build user-friendly tools for field teams
-    • Set up community feedback loops
+    ## Ethical Reflection on Water Quality Prediction Model
+    
+    ### 1. Data Collection Bias
+    - **Geographic Bias**: The dataset may not represent all regions equally. Rural vs urban sampling could lead to biased predictions.
+    - **Temporal Bias**: Water quality varies seasonally, but our model may not capture these variations if data collection was limited to specific time periods.
+    - **Infrastructure Bias**: Areas with better monitoring infrastructure may be overrepresented in the dataset.
+    
+    ### 2. Fairness Considerations
+    - **Regional Equity**: The model should perform equally well across different counties and regions to ensure fair resource allocation.
+    - **Socioeconomic Fairness**: Predictions should not systematically disadvantage communities based on their economic status or infrastructure development.
+    - **Access Equity**: False negatives (predicting safe water when it is contaminated) could disproportionately harm vulnerable populations.
+    
+    ### 3. Responsible Deployment
+    - **Model Limitations**: This model should supplement, not replace, direct water quality testing and expert judgment.
+    - **Transparency**: Local governments and water quality teams should understand the model limitations and confidence intervals.
+    - **Regular Updates**: The model should be retrained with new data to maintain accuracy and relevance.
+    - **Community Involvement**: Local communities should be involved in validation and feedback processes.
+    
+    ### 4. Impact Assessment
+    - **Positive Impact**: Early identification of contaminated water sources can prevent waterborne diseases and improve public health outcomes.
+    - **Risk Mitigation**: False positives (predicting contamination when water is safe) are preferable to false negatives in terms of public health protection.
+    - **Resource Optimization**: The model can help prioritize water quality testing and treatment efforts in resource-constrained environments.
+    
+    ### 5. Recommendations for Responsible Use
+    - Use as a screening tool to prioritize detailed testing, not as a final decision maker
+    - Implement confidence thresholds and flag uncertain predictions for manual review
+    - Regularly validate model performance across different regions and populations
+    - Maintain human oversight and expert review of all predictions
+    - Ensure transparent communication of model limitations to all stakeholders
     """)
-except ImportError:
-    # If Streamlit is not available, print to console
-    print("WATER QUALITY PREDICTION MODEL SUMMARY")
-    print("=" * 50)
-    print(f"Dataset: {df.shape[0]} samples with {df.shape[1]} features")
-    print(f"Target: Water potability (binary classification)")
-    print(f"Best Model: {best_model_name} (ROC-AUC: {results[best_model_name]['roc_auc']:.3f})")
-    print(f"Accuracy: {results[best_model_name]['accuracy']:.1%}")
-    print()
-    print("Top 3 Features for Prediction:")
-    for _, row in feature_importance.tail(3).iterrows():
-        print(f"- {row['feature']}")
-    print()
-    print("SDG 6 Alignment:")
-    print("• Enables early detection of unsafe water")
-    print("• Supports data-driven resource allocation")
-    print("• Reduces disease risk from contaminated water")
-    print()
-    print("Next Steps:")
-    print("• Deploy model with human oversight")
-    print("• Collect data from underrepresented areas")
-    print("• Add real-time monitoring integration")
-    print("• Build user-friendly tools for field teams")
-    print("• Set up community feedback loops")
 
-print("=" * 80)  
-print("\nAnalysis completed successfully!")
-print("=" * 80)
+# ============================================================================
+# 9. SUMMARY AND CONCLUSIONS
+# ============================================================================
+
+elif selected_section == "9. Summary & Conclusions":
+    st.header("9. Summary and Conclusions")
+    
+    if st.session_state.data_loaded:
+        df = st.session_state.df
+        
+        st.subheader("Water Quality Prediction Model Summary")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Dataset Size", f"{df.shape[0]} samples")
+            st.metric("Features", f"{df.shape[1]} features")
+        
+        if st.session_state.models_trained:
+            results = st.session_state.results
+            best_model_name = max(results.keys(), key=lambda x: results[x]['roc_auc'])
+            
+            with col2:
+                st.metric("Best Model", best_model_name)
+                st.metric("ROC-AUC Score", f"{results[best_model_name]['roc_auc']:.3f}")
+                st.metric("Accuracy", f"{results[best_model_name]['accuracy']:.1%}")
+            
+            if 'Random Forest' in st.session_state.best_models and st.session_state.get('feature_names'):
+                st.subheader("Top 3 Features for Prediction")
+                rf_model = st.session_state.best_models['Random Forest']
+                feature_names = st.session_state.feature_names
+                
+                feature_importance = pd.DataFrame({
+                    'feature': feature_names,
+                    'importance': rf_model.feature_importances_
+                }).sort_values('importance', ascending=False)
+                
+                for _, row in feature_importance.head(3).iterrows():
+                    st.write(f"• **{row['feature']}**: {row['importance']:.4f}")
+        
+        st.subheader("SDG 6 Alignment")
+        st.markdown("""
+        • **Enables early detection of unsafe water** - Proactive identification of contaminated sources
+        • **Supports data-driven resource allocation** - Optimize water quality testing and treatment efforts
+        • **Reduces disease risk from contaminated water** - Prevent waterborne diseases through early warning
+        """)
+        
+        st.subheader("Next Steps")
+        st.markdown("""
+        • **Deploy model with human oversight** - Implement with expert validation and review processes
+        • **Collect data from underrepresented areas** - Expand dataset to improve geographic coverage
+        • **Add real-time monitoring integration** - Connect with IoT sensors and monitoring systems
+        • **Build user-friendly tools for field teams** - Develop mobile apps and dashboard interfaces
+        • **Set up community feedback loops** - Establish mechanisms for local validation and input
+        """)
+        
+        st.success("Analysis completed successfully! 🎉")
+    
+    else:
+        st.info("Please complete the analysis by going through all sections to see the summary.")
+
+# Footer
+st.markdown("---")
+st.markdown("""
+**Water Quality Prediction for SDG 6: Clean Water and Sanitation**  
+*A comprehensive machine learning solution for water quality assessment*  
+""")
 
 
 
