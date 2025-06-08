@@ -1,4 +1,5 @@
-Quality Prediction for SDG 6: Clean Water and Sanitation
+"""
+Water Quality Prediction for SDG 6: Clean Water and Sanitation
 A comprehensive machine learning solution to predict water contamination levels
 in rural Kenyan counties using supervised learning techniques.
 
@@ -448,39 +449,70 @@ ETHICAL REFLECTION ON WATER QUALITY PREDICTION MODEL
    - Maintain human oversight and expert review of all predictions
    - Ensure transparent communication of model limitations to all stakeholders
 """)
+
 # ============================================================================
 # 10. SUMMARY AND CONCLUSIONS
 # ============================================================================
 
 print("\n10. SUMMARY AND CONCLUSIONS")
 print("-" * 50)
-import streamlit as st
-st.markdown("### WATER QUALITY PREDICTION MODEL SUMMARY")
-st.markdown(f"""
-Dataset: {df.shape[0]} samples with {df.shape[1]} features
-Target: Water potability (binary classification)
-Best Model: {best_model_name} (ROC-AUC: {results[best_model_name]['roc_auc']})
-Accuracy: {results[best_model_name]['accuracy']:.1%}
-""")
 
-st.markdown("Top 3 Features for Prediction:")
-for _, row in feature_importance.tail(3).iterrows():
-    st.markdown(f"- {row['feature']}")
+# Streamlit components (if running in Streamlit environment)
+try:
+    import streamlit as st
+    st.markdown("### WATER QUALITY PREDICTION MODEL SUMMARY")
+    st.markdown(f"""
+    Dataset: {df.shape[0]} samples with {df.shape[1]} features
+    Target: Water potability (binary classification)
+    Best Model: {best_model_name} (ROC-AUC: {results[best_model_name]['roc_auc']:.3f})
+    Accuracy: {results[best_model_name]['accuracy']:.1%}
+    """)
 
-st.markdown("""
-SDG 6 Alignment:
- Enables early detection of unsafe water
- Supports data-driven resource allocation
- Reduces disease risk from contaminated water
+    st.markdown("Top 3 Features for Prediction:")
+    for _, row in feature_importance.tail(3).iterrows():
+        st.markdown(f"- {row['feature']}")
 
-Next Steps:
- Deploy model with human oversight
- Collect data from underrepresented areas
- Add real-time monitoring integration
- Build user-friendly tools for field teams
- Set up community feedback loops """)
+    st.markdown("""
+    SDG 6 Alignment:
+    • Enables early detection of unsafe water
+    • Supports data-driven resource allocation
+    • Reduces disease risk from contaminated water
+
+    Next Steps:
+    • Deploy model with human oversight
+    • Collect data from underrepresented areas
+    • Add real-time monitoring integration
+    • Build user-friendly tools for field teams
+    • Set up community feedback loops
+    """)
+except ImportError:
+    # If Streamlit is not available, print to console
+    print("WATER QUALITY PREDICTION MODEL SUMMARY")
+    print("=" * 50)
+    print(f"Dataset: {df.shape[0]} samples with {df.shape[1]} features")
+    print(f"Target: Water potability (binary classification)")
+    print(f"Best Model: {best_model_name} (ROC-AUC: {results[best_model_name]['roc_auc']:.3f})")
+    print(f"Accuracy: {results[best_model_name]['accuracy']:.1%}")
+    print()
+    print("Top 3 Features for Prediction:")
+    for _, row in feature_importance.tail(3).iterrows():
+        print(f"- {row['feature']}")
+    print()
+    print("SDG 6 Alignment:")
+    print("• Enables early detection of unsafe water")
+    print("• Supports data-driven resource allocation")
+    print("• Reduces disease risk from contaminated water")
+    print()
+    print("Next Steps:")
+    print("• Deploy model with human oversight")
+    print("• Collect data from underrepresented areas")
+    print("• Add real-time monitoring integration")
+    print("• Build user-friendly tools for field teams")
+    print("• Set up community feedback loops")
 
 print("=" * 80)  
 print("\nAnalysis completed successfully!")
 print("=" * 80)
+
+
 
