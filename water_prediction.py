@@ -427,7 +427,7 @@ ETHICAL REFLECTION ON WATER QUALITY PREDICTION MODEL
    - Model Limitations: This model should supplement, not replace, direct water
      quality testing and expert judgment.
    - Transparency: Local governments and water quality teams should understand
-     the model's limitations and confidence intervals.
+     the model limitations and confidence intervals.
    - Regular Updates: The model should be retrained with new data to maintain
      accuracy and relevance.
    - Community Involvement: Local communities should be involved in validation
