@@ -420,7 +420,7 @@ ETHICAL REFLECTION ON WATER QUALITY PREDICTION MODEL
      counties and regions to ensure fair resource allocation.
    - Socioeconomic Fairness: Predictions should not systematically disadvantage
      communities based on their economic status or infrastructure development.
-   - Access Equity: False negatives (predicting safe water when it's contaminated)
+   - Access Equity: False negatives: predicting safe water when it's contaminated
      could disproportionately harm vulnerable populations.
 
 3. RESPONSIBLE DEPLOYMENT:
