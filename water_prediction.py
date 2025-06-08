@@ -461,7 +461,7 @@ WATER QUALITY PREDICTION MODEL SUMMARY
 
 Dataset: {df.shape[0]} water samples with {df.shape[1]} features
 Target: Water potability (binary classification)
-Best Model: {best_model_name} (ROC-AUC: {results[best_model_name]['roc_auc']:.4f})
+Best Model: {best_model_name} (ROC-AUC: {results[best_model_name]['roc_auc']})
 
 Key Findings:
 1. The model achieved {results[best_model_name]['accuracy']:.1%} accuracy on test data
