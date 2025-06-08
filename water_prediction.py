@@ -466,7 +466,7 @@ Dataset: {df.shape[0]} samples with {df.shape[1]} features
 
 Target: Water potability (binary classification)
 
-Best Model: {best_model_name} (ROC-AUC: {results[best_model_name]['roc_auc']:.4f})
+Best Model: {best_model_name} (ROC-AUC: {results[best_model_name]['roc_auc']:})
 
 Accuracy: {results[best_model_name]['accuracy']:.1%}
 """)
