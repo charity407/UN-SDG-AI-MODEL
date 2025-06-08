@@ -476,24 +476,19 @@ for _, row in feature_importance.tail(3).iterrows():
 st.markdown(f"- {row['feature']}")
 
 st.markdown("""
-
 SDG 6 Alignment:
-Enables early detection of unsafe water
-
-Supports data-driven resource allocation
-
-Reduces disease risk from contaminated water
+• Enables early detection of unsafe water
+• Supports data-driven resource allocation
+• Reduces disease risk from contaminated water
 
 Next Steps:
-Deploy model with human oversight
-
-Collect data from underrepresented areas
-
-Add real-time monitoring integration
-
-Build user-friendly tools for field teams
-
-Set up community feedback loops
+• Deploy model with human oversight
+• Collect data from underrepresented areas
+• Add real-time monitoring integration
+• Build user-friendly tools for field teams
+• Set up community feedback loops
 """)
+    
 print("\nAnalysis completed successfully!")
 print("=" * 80)
+    
