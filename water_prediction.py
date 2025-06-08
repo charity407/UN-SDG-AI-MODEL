@@ -487,7 +487,7 @@ Next Steps:
  Add real-time monitoring integration
  Build user-friendly tools for field teams
  Set up community feedback loops
-""")
+""");
     
 print("\nAnalysis completed successfully!")
 print("=" * 80)
