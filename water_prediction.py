@@ -692,6 +692,7 @@ elif selected_section == "9. Summary & Conclusions":
 st.markdown("---")
 st.markdown("""
 **Water Quality Prediction**
+""")
 
 
 
