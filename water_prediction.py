@@ -456,33 +456,44 @@ ETHICAL REFLECTION ON WATER QUALITY PREDICTION MODEL
 print("\n10. SUMMARY AND CONCLUSIONS")
 print("-" * 50)
 
-print(f"""
-WATER QUALITY PREDICTION MODEL SUMMARY
+import streamlit as st
 
-Dataset: {df.shape[0]} water samples with {df.shape[1]} features
+st.markdown("### WATER QUALITY PREDICTION MODEL SUMMARY")
+
+st.markdown(f"""
+
+Dataset: {df.shape[0]} samples with {df.shape[1]} features
+
 Target: Water potability (binary classification)
-Best Model: {best_model_name} (ROC-AUC: {results[best_model_name]['roc_auc']})
 
-Key Findings:
-1. The model achieved {results[best_model_name]['accuracy']:.1%} accuracy on test data
-2. Most important features for prediction:
-   {chr(10).join([f"   - {row['feature']}" for _, row in feature_importance.tail(3).iterrows()])}
-3. The model shows good generalization with cross-validation scores
+Best Model: {best_model_name} (ROC-AUC: {results[best_model_name]['roc_auc']:.4f})
 
-SDG 6 Alignment:
-This model contributes to SDG 6 (Clean Water and Sanitation) by:
-- Enabling early detection of water contamination
-- Supporting efficient allocation of water treatment resources
-- Facilitating data-driven decision making for water quality management
-- Potentially reducing waterborne disease incidence in rural communities
-
-Next Steps:
-1. Deploy model with appropriate safeguards and human oversight
-2. Collect additional data from underrepresented regions
-3. Implement real-time monitoring integration
-4. Develop user-friendly interfaces for field workers and local governments
-5. Establish feedback loops for continuous model improvement
+Accuracy: {results[best_model_name]['accuracy']:.1%}
 """)
 
+st.markdown("Top 3 Features for Prediction:")
+for _, row in feature_importance.tail(3).iterrows():
+st.markdown(f"- {row['feature']}")
+
+st.markdown("""
+
+SDG 6 Alignment:
+Enables early detection of unsafe water
+
+Supports data-driven resource allocation
+
+Reduces disease risk from contaminated water
+
+Next Steps:
+Deploy model with human oversight
+
+Collect data from underrepresented areas
+
+Add real-time monitoring integration
+
+Build user-friendly tools for field teams
+
+Set up community feedback loops
+""")
 print("\nAnalysis completed successfully!")
 print("=" * 80)
