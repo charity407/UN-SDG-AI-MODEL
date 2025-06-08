@@ -12,14 +12,27 @@ Objective: Predict water potability using water quality parameters
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.express as px
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-from sklearn.model_selection import train_test_split, cross_val_score, GridSearchCV
-from sklearn.preprocessing import StandardScaler
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
-from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score, roc_curve
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+
+# Check and import plotly with error handling
+try:
+    import plotly.express as px
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
+except ImportError as e:
+    st.error("Plotly is not installed. Please add 'plotly>=5.0.0' to your requirements.txt file.")
+    st.stop()
+
+# Check and import sklearn with error handling
+try:
+    from sklearn.model_selection import train_test_split, cross_val_score, GridSearchCV
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+    from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score, roc_curve
+    from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+except ImportError as e:
+    st.error("Scikit-learn is not installed. Please add 'scikit-learn>=1.3.0' to your requirements.txt file.")
+    st.stop()
+
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -160,19 +173,23 @@ elif selected_section == "2. Data Preprocessing":
             st.metric("Missing Values After", missing_after)
         
         # Separate features and target
-        X = df_processed.drop('Potability', axis=1)
-        y = df_processed['Potability']
-        
-        st.subheader("Target Distribution")
-        target_counts = y.value_counts()
-        
-        fig = px.bar(
-            x=target_counts.index, 
-            y=target_counts.values,
-            labels={'x': 'Potability (0: Not Potable, 1: Potable)', 'y': 'Count'},
-            title="Water Potability Distribution"
-        )
-        st.plotly_chart(fig, use_container_width=True)
+        if 'Potability' in df_processed.columns:
+            X = df_processed.drop('Potability', axis=1)
+            y = df_processed['Potability']
+            
+            st.subheader("Target Distribution")
+            target_counts = y.value_counts()
+            
+            fig = px.bar(
+                x=['Not Potable', 'Potable'], 
+                y=[target_counts.get(0, 0), target_counts.get(1, 0)],
+                labels={'x': 'Potability', 'y': 'Count'},
+                title="Water Potability Distribution"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.error("Target column 'Potability' not found in the dataset.")
+            st.stop()
         
         # Store processed data
         st.session_state.df_processed = df_processed
@@ -204,7 +221,7 @@ elif selected_section == "3. Exploratory Data Analysis":
             selected_features = st.multiselect(
                 "Select features to visualize:",
                 X.columns.tolist(),
-                default=X.columns.tolist()[:4]
+                default=X.columns.tolist()[:4] if len(X.columns) >= 4 else X.columns.tolist()
             )
             
             if selected_features:
@@ -231,16 +248,17 @@ elif selected_section == "3. Exploratory Data Analysis":
             st.plotly_chart(fig, use_container_width=True)
             
             # Feature correlation with target
-            st.subheader("Feature Correlation with Target")
-            target_correlation = correlation_matrix['Potability'].drop('Potability').sort_values(key=abs, ascending=False)
-            
-            fig = px.bar(
-                x=target_correlation.values,
-                y=target_correlation.index,
-                orientation='h',
-                title="Feature Correlation with Potability"
-            )
-            st.plotly_chart(fig, use_container_width=True)
+            if 'Potability' in correlation_matrix.columns:
+                st.subheader("Feature Correlation with Target")
+                target_correlation = correlation_matrix['Potability'].drop('Potability').sort_values(key=abs, ascending=False)
+                
+                fig = px.bar(
+                    x=target_correlation.values,
+                    y=target_correlation.index,
+                    orientation='h',
+                    title="Feature Correlation with Potability"
+                )
+                st.plotly_chart(fig, use_container_width=True)
 
 # ============================================================================
 # 4. FEATURE ENGINEERING
@@ -263,16 +281,21 @@ elif selected_section == "4. Feature Engineering":
             # Create interaction features
             X_engineered = X.copy()
             
-            # pH-related interactions
-            X_engineered['pH_Hardness_ratio'] = X_engineered['ph'] / (X_engineered['Hardness'] + 1e-8)
-            X_engineered['pH_Sulfate_ratio'] = X_engineered['ph'] / (X_engineered['Sulfate'] + 1e-8)
+            # Check if required columns exist before creating ratios
+            if 'ph' in X_engineered.columns and 'Hardness' in X_engineered.columns:
+                X_engineered['pH_Hardness_ratio'] = X_engineered['ph'] / (X_engineered['Hardness'] + 1e-8)
             
-            # Contamination indicators
-            X_engineered['Organic_Trihalomethanes_ratio'] = X_engineered['Organic_carbon'] / (X_engineered['Trihalomethanes'] + 1e-8)
-            X_engineered['Turbidity_Conductivity_ratio'] = X_engineered['Turbidity'] / (X_engineered['Conductivity'] + 1e-8)
+            if 'ph' in X_engineered.columns and 'Sulfate' in X_engineered.columns:
+                X_engineered['pH_Sulfate_ratio'] = X_engineered['ph'] / (X_engineered['Sulfate'] + 1e-8)
             
-            # Chemical balance indicator
-            X_engineered['Chemical_balance'] = X_engineered['Chloramines'] * X_engineered['Sulfate'] / (X_engineered['Solids'] + 1e-8)
+            if 'Organic_carbon' in X_engineered.columns and 'Trihalomethanes' in X_engineered.columns:
+                X_engineered['Organic_Trihalomethanes_ratio'] = X_engineered['Organic_carbon'] / (X_engineered['Trihalomethanes'] + 1e-8)
+            
+            if 'Turbidity' in X_engineered.columns and 'Conductivity' in X_engineered.columns:
+                X_engineered['Turbidity_Conductivity_ratio'] = X_engineered['Turbidity'] / (X_engineered['Conductivity'] + 1e-8)
+            
+            if all(col in X_engineered.columns for col in ['Chloramines', 'Sulfate', 'Solids']):
+                X_engineered['Chemical_balance'] = X_engineered['Chloramines'] * X_engineered['Sulfate'] / (X_engineered['Solids'] + 1e-8)
             
             col1, col2, col3 = st.columns(3)
             with col1:
@@ -309,6 +332,9 @@ elif selected_section == "4. Feature Engineering":
                 st.success("Feature engineering completed!")
             else:
                 st.warning("No features meet the correlation threshold. Try lowering the threshold.")
+                # Use all original features as fallback
+                st.session_state.X_final = X_engineered
+                st.session_state.feature_names = X_engineered.columns.tolist()
 
 # ============================================================================
 # 5. MODEL TRAINING
@@ -378,31 +404,35 @@ elif selected_section == "5. Model Training":
                     status_text.text(f"Training {model_name}...")
                     progress_bar.progress((i + 1) / len(models))
                     
-                    # Hyperparameter tuning
-                    grid_search = GridSearchCV(
-                        model, param_grids[model_name], 
-                        cv=3, scoring='roc_auc', n_jobs=-1
-                    )
-                    
-                    grid_search.fit(X_train_scaled, y_train)
-                    best_model = grid_search.best_estimator_
-                    best_models[model_name] = best_model
-                    
-                    # Predictions
-                    y_pred = best_model.predict(X_test_scaled)
-                    y_pred_proba = best_model.predict_proba(X_test_scaled)[:, 1]
-                    
-                    # Metrics
-                    results[model_name] = {
-                        'accuracy': accuracy_score(y_test, y_pred),
-                        'precision': precision_score(y_test, y_pred),
-                        'recall': recall_score(y_test, y_pred),
-                        'f1': f1_score(y_test, y_pred),
-                        'roc_auc': roc_auc_score(y_test, y_pred_proba),
-                        'y_pred': y_pred,
-                        'y_pred_proba': y_pred_proba,
-                        'best_params': grid_search.best_params_
-                    }
+                    try:
+                        # Hyperparameter tuning
+                        grid_search = GridSearchCV(
+                            model, param_grids[model_name], 
+                            cv=3, scoring='roc_auc', n_jobs=-1
+                        )
+                        
+                        grid_search.fit(X_train_scaled, y_train)
+                        best_model = grid_search.best_estimator_
+                        best_models[model_name] = best_model
+                        
+                        # Predictions
+                        y_pred = best_model.predict(X_test_scaled)
+                        y_pred_proba = best_model.predict_proba(X_test_scaled)[:, 1]
+                        
+                        # Metrics
+                        results[model_name] = {
+                            'accuracy': accuracy_score(y_test, y_pred),
+                            'precision': precision_score(y_test, y_pred, zero_division=0),
+                            'recall': recall_score(y_test, y_pred, zero_division=0),
+                            'f1': f1_score(y_test, y_pred, zero_division=0),
+                            'roc_auc': roc_auc_score(y_test, y_pred_proba),
+                            'y_pred': y_pred,
+                            'y_pred_proba': y_pred_proba,
+                            'best_params': grid_search.best_params_
+                        }
+                    except Exception as e:
+                        st.error(f"Error training {model_name}: {str(e)}")
+                        continue
                 
                 # Store results in session state
                 st.session_state.results = results
@@ -417,9 +447,10 @@ elif selected_section == "5. Model Training":
                 st.success("Models trained successfully!")
                 
                 # Display results
-                st.subheader("Model Performance")
-                results_df = pd.DataFrame(results).T
-                st.dataframe(results_df[['accuracy', 'precision', 'recall', 'f1', 'roc_auc']])
+                if results:
+                    st.subheader("Model Performance")
+                    results_df = pd.DataFrame(results).T
+                    st.dataframe(results_df[['accuracy', 'precision', 'recall', 'f1', 'roc_auc']])
 
 # ============================================================================
 # 6. MODEL EVALUATION
@@ -434,69 +465,78 @@ elif selected_section == "6. Model Evaluation":
         results = st.session_state.results
         y_test = st.session_state.y_test
         
-        # Performance comparison
-        st.subheader("Model Performance Comparison")
-        results_df = pd.DataFrame(results).T
-        
-        fig = px.bar(
-            results_df.reset_index(),
-            x='index',
-            y=['accuracy', 'precision', 'recall', 'f1', 'roc_auc'],
-            title="Model Performance Metrics",
-            barmode='group'
-        )
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # ROC Curves
-        st.subheader("ROC Curves")
-        fig = go.Figure()
-        
-        for model_name in results.keys():
-            fpr, tpr, _ = roc_curve(y_test, results[model_name]['y_pred_proba'])
-            fig.add_trace(go.Scatter(
-                x=fpr, y=tpr,
-                name=f"{model_name} (AUC = {results[model_name]['roc_auc']:.3f})",
-                mode='lines'
-            ))
-        
-        fig.add_trace(go.Scatter(x=[0, 1], y=[0, 1], mode='lines', name='Random', line=dict(dash='dash')))
-        fig.update_layout(
-            title="ROC Curves",
-            xaxis_title="False Positive Rate",
-            yaxis_title="True Positive Rate"
-        )
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # Confusion Matrices
-        st.subheader("Confusion Matrices")
-        col1, col2 = st.columns(2)
-        
-        for i, (model_name, col) in enumerate(zip(results.keys(), [col1, col2])):
-            with col:
-                cm = confusion_matrix(y_test, results[model_name]['y_pred'])
-                fig = px.imshow(cm, text_auto=True, title=f"{model_name} Confusion Matrix")
-                st.plotly_chart(fig, use_container_width=True)
-        
-        # Feature Importance (Random Forest)
-        if 'Random Forest' in st.session_state.best_models:
-            st.subheader("Feature Importance (Random Forest)")
-            rf_model = st.session_state.best_models['Random Forest']
-            feature_names = st.session_state.get('feature_names', [])
+        if not results:
+            st.warning("No model results available.")
+        else:
+            # Performance comparison
+            st.subheader("Model Performance Comparison")
+            results_df = pd.DataFrame(results).T
             
-            if feature_names:
-                importance_df = pd.DataFrame({
-                    'feature': feature_names,
-                    'importance': rf_model.feature_importances_
-                }).sort_values('importance', ascending=True)
+            fig = px.bar(
+                results_df.reset_index(),
+                x='index',
+                y=['accuracy', 'precision', 'recall', 'f1', 'roc_auc'],
+                title="Model Performance Metrics",
+                barmode='group'
+            )
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # ROC Curves
+            st.subheader("ROC Curves")
+            fig = go.Figure()
+            
+            for model_name in results.keys():
+                fpr, tpr, _ = roc_curve(y_test, results[model_name]['y_pred_proba'])
+                fig.add_trace(go.Scatter(
+                    x=fpr, y=tpr,
+                    name=f"{model_name} (AUC = {results[model_name]['roc_auc']:.3f})",
+                    mode='lines'
+                ))
+            
+            fig.add_trace(go.Scatter(x=[0, 1], y=[0, 1], mode='lines', name='Random', line=dict(dash='dash')))
+            fig.update_layout(
+                title="ROC Curves",
+                xaxis_title="False Positive Rate",
+                yaxis_title="True Positive Rate"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Confusion Matrices
+            st.subheader("Confusion Matrices")
+            
+            model_names = list(results.keys())
+            if len(model_names) >= 2:
+                col1, col2 = st.columns(2)
+                columns = [col1, col2]
+            else:
+                columns = [st]
+            
+            for i, model_name in enumerate(model_names):
+                with columns[i % len(columns)]:
+                    cm = confusion_matrix(y_test, results[model_name]['y_pred'])
+                    fig = px.imshow(cm, text_auto=True, title=f"{model_name} Confusion Matrix")
+                    st.plotly_chart(fig, use_container_width=True)
+            
+            # Feature Importance (Random Forest)
+            if 'Random Forest' in st.session_state.get('best_models', {}):
+                st.subheader("Feature Importance (Random Forest)")
+                rf_model = st.session_state.best_models['Random Forest']
+                feature_names = st.session_state.get('feature_names', [])
                 
-                fig = px.bar(
-                    importance_df,
-                    x='importance',
-                    y='feature',
-                    orientation='h',
-                    title="Random Forest Feature Importance"
-                )
-                st.plotly_chart(fig, use_container_width=True)
+                if feature_names and len(feature_names) == len(rf_model.feature_importances_):
+                    importance_df = pd.DataFrame({
+                        'feature': feature_names,
+                        'importance': rf_model.feature_importances_
+                    }).sort_values('importance', ascending=True)
+                    
+                    fig = px.bar(
+                        importance_df,
+                        x='importance',
+                        y='feature',
+                        orientation='h',
+                        title="Random Forest Feature Importance"
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
 
 # ============================================================================
 # 7. MODEL INTERPRETATION
@@ -508,41 +548,44 @@ elif selected_section == "7. Model Interpretation":
     if not st.session_state.models_trained:
         st.warning("Please train models first in Section 5.")
     else:
-        results = st.session_state.results
-        best_models = st.session_state.best_models
+        results = st.session_state.get('results', {})
+        best_models = st.session_state.get('best_models', {})
         
-        # Best performing model
-        best_model_name = max(results.keys(), key=lambda x: results[x]['roc_auc'])
-        
-        st.subheader("Best Performing Model")
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            st.metric("Best Model", best_model_name)
-        with col2:
-            st.metric("ROC-AUC Score", f"{results[best_model_name]['roc_auc']:.4f}")
-        with col3:
-            st.metric("Accuracy", f"{results[best_model_name]['accuracy']:.1%}")
-        
-        # Feature importance analysis
-        if 'Random Forest' in best_models:
-            st.subheader("Top Features for Water Potability Prediction")
-            rf_model = best_models['Random Forest']
-            feature_names = st.session_state.get('feature_names', [])
+        if not results:
+            st.warning("No model results available.")
+        else:
+            # Best performing model
+            best_model_name = max(results.keys(), key=lambda x: results[x]['roc_auc'])
             
-            if feature_names:
-                feature_importance = pd.DataFrame({
-                    'feature': feature_names,
-                    'importance': rf_model.feature_importances_
-                }).sort_values('importance', ascending=False)
+            st.subheader("Best Performing Model")
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.metric("Best Model", best_model_name)
+            with col2:
+                st.metric("ROC-AUC Score", f"{results[best_model_name]['roc_auc']:.4f}")
+            with col3:
+                st.metric("Accuracy", f"{results[best_model_name]['accuracy']:.1%}")
+            
+            # Feature importance analysis
+            if 'Random Forest' in best_models:
+                st.subheader("Top Features for Water Potability Prediction")
+                rf_model = best_models['Random Forest']
+                feature_names = st.session_state.get('feature_names', [])
                 
-                st.dataframe(feature_importance.head(10))
-        
-        # Model parameters
-        st.subheader("Best Model Parameters")
-        for model_name, result in results.items():
-            st.write(f"**{model_name}:**")
-            st.json(result['best_params'])
+                if feature_names and len(feature_names) == len(rf_model.feature_importances_):
+                    feature_importance = pd.DataFrame({
+                        'feature': feature_names,
+                        'importance': rf_model.feature_importances_
+                    }).sort_values('importance', ascending=False)
+                    
+                    st.dataframe(feature_importance.head(10))
+            
+            # Model parameters
+            st.subheader("Best Model Parameters")
+            for model_name, result in results.items():
+                st.write(f"**{model_name}:**")
+                st.json(result['best_params'])
 
 # ============================================================================
 # 8. ETHICAL CONSIDERATIONS
@@ -601,26 +644,28 @@ elif selected_section == "9. Summary & Conclusions":
             st.metric("Features", f"{df.shape[1]} features")
         
         if st.session_state.models_trained:
-            results = st.session_state.results
-            best_model_name = max(results.keys(), key=lambda x: results[x]['roc_auc'])
-            
-            with col2:
-                st.metric("Best Model", best_model_name)
-                st.metric("ROC-AUC Score", f"{results[best_model_name]['roc_auc']:.3f}")
-                st.metric("Accuracy", f"{results[best_model_name]['accuracy']:.1%}")
-            
-            if 'Random Forest' in st.session_state.best_models and st.session_state.get('feature_names'):
-                st.subheader("Top 3 Features for Prediction")
-                rf_model = st.session_state.best_models['Random Forest']
-                feature_names = st.session_state.feature_names
+            results = st.session_state.get('results', {})
+            if results:
+                best_model_name = max(results.keys(), key=lambda x: results[x]['roc_auc'])
                 
-                feature_importance = pd.DataFrame({
-                    'feature': feature_names,
-                    'importance': rf_model.feature_importances_
-                }).sort_values('importance', ascending=False)
+                with col2:
+                    st.metric("Best Model", best_model_name)
+                    st.metric("ROC-AUC Score", f"{results[best_model_name]['roc_auc']:.3f}")
+                    st.metric("Accuracy", f"{results[best_model_name]['accuracy']:.1%}")
                 
-                for _, row in feature_importance.head(3).iterrows():
-                    st.write(f"• **{row['feature']}**: {row['importance']:.4f}")
+                if 'Random Forest' in st.session_state.get('best_models', {}) and st.session_state.get('feature_names'):
+                    st.subheader("Top 3 Features for Prediction")
+                    rf_model = st.session_state.best_models['Random Forest']
+                    feature_names = st.session_state.feature_names
+                    
+                    if len(feature_names) == len(rf_model.feature_importances_):
+                        feature_importance = pd.DataFrame({
+                            'feature': feature_names,
+                            'importance': rf_model.feature_importances_
+                        }).sort_values('importance', ascending=False)
+                        
+                        for _, row in feature_importance.head(3).iterrows():
+                            st.write(f"• **{row['feature']}**: {row['importance']:.4f}")
         
         st.subheader("SDG 6 Alignment")
         st.markdown("""
@@ -646,9 +691,7 @@ elif selected_section == "9. Summary & Conclusions":
 # Footer
 st.markdown("---")
 st.markdown("""
-**Water Quality Prediction for SDG 6: Clean Water and Sanitation**  
-*A comprehensive machine learning solution for water quality assessment*  
-""")
+**Water Quality Prediction**
 
 
 
