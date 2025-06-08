@@ -215,6 +215,6 @@ pip install -r requirements.txt
 
 
 #### Presentation
-https://github.com/charity407/UN-SDG-AI-MODEL.git
+https://www.canva.com/design/DAGpyniYV_g/OkKIcxahzjTVttKgzontzQ/edit?utm_content=DAGpyniYV_g&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton
 
 
