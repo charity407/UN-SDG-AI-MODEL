@@ -448,5 +448,39 @@ ETHICAL REFLECTION ON WATER QUALITY PREDICTION MODEL
    - Maintain human oversight and expert review of all predictions
    - Ensure transparent communication of model limitations to all stakeholders
 """)
+# ============================================================================
+# 10. SUMMARY AND CONCLUSIONS
+# ============================================================================
 
+print("\n10. SUMMARY AND CONCLUSIONS")
+print("-" * 50)
+import streamlit as st
+st.markdown("### WATER QUALITY PREDICTION MODEL SUMMARY")
+st.markdown(f"""
+Dataset: {df.shape[0]} samples with {df.shape[1]} features
+Target: Water potability (binary classification)
+Best Model: {best_model_name} (ROC-AUC: {results[best_model_name]['roc_auc']})
+Accuracy: {results[best_model_name]['accuracy']:.1%}
+""")
+
+st.markdown("Top 3 Features for Prediction:")
+for _, row in feature_importance.tail(3).iterrows():
+    st.markdown(f"- {row['feature']}")
+
+st.markdown("""
+SDG 6 Alignment:
+ Enables early detection of unsafe water
+ Supports data-driven resource allocation
+ Reduces disease risk from contaminated water
+
+Next Steps:
+ Deploy model with human oversight
+ Collect data from underrepresented areas
+ Add real-time monitoring integration
+ Build user-friendly tools for field teams
+ Set up community feedback loops
+""")
+print("=" * 80)  
+print("\nAnalysis completed successfully!")
+print("=" * 80)
 
